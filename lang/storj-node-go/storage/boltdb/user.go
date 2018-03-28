@@ -19,6 +19,12 @@ func (bdb *Client) CreateUser(user User) error {
 		b := tx.Bucket([]byte("users"))
 
 		usernameKey := []byte(user.Username)
+
+		v := b.Get(usernameKey)
+		if v != nil {
+			return errors.New("username already taken")
+		}
+
 		userBytes, err := json.Marshal(user)
 		if err != nil {
 			log.Println(err)
@@ -28,11 +34,11 @@ func (bdb *Client) CreateUser(user User) error {
 	})
 }
 
-func (bdb *Client) GetUser(key []byte) (User, error) {
+func (bdb *Client) GetUser(username string) (User, error) {
 	var userInfo User
 	err := bdb.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("users"))
-		v := b.Get(key)
+		v := b.Get([]byte(username))
 		if v == nil {
 			log.Println("user not found")
 			return nil
@@ -59,9 +65,9 @@ func (bdb *Client) UpdateUser(user User) error {
 	})
 }
 
-func (bdb *Client) DeleteUser(key []byte) {
+func (bdb *Client) DeleteUser(key string) {
 	if err := bdb.DB.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket([]byte("users")).Delete(key)
+		return tx.Bucket([]byte("users")).Delete([]byte(key))
 	}); err != nil {
 		log.Println(err)
 	}

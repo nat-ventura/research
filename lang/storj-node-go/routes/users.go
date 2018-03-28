@@ -28,7 +28,7 @@ func (u *Users) CreateUser(ctx iris.Context) {
 
 func (u *Users) GetUser(ctx iris.Context) {
 	userId := ctx.Params().Get("id")
-	userInfo, err := u.DB.GetUser([]byte(userId))
+	userInfo, err := u.DB.GetUser(userId)
 	if err != nil {
 		log.Println(err)
 	}
@@ -40,7 +40,7 @@ func (u *Users) GetUser(ctx iris.Context) {
 // Uses two db queries now, can refactor
 func (u *Users) UpdateUser(ctx iris.Context) {
 	userId := ctx.Params().Get("id")
-	userInfo, err := u.DB.GetUser([]byte(userId))
+	userInfo, err := u.DB.GetUser(userId)
 	if err != nil {
 		log.Println(err)
 	}
@@ -59,5 +59,5 @@ func (u *Users) UpdateUser(ctx iris.Context) {
 
 func (u *Users) DeleteUser(ctx iris.Context) {
 	userId := ctx.Params().Get("id")
-	u.DB.DeleteUser([]byte(userId))
+	u.DB.DeleteUser(userId)
 }
