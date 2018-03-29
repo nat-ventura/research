@@ -13,6 +13,11 @@ type User struct {
 	Username string    `json:"username"`
 }
 
+var (
+	ErrNotFound      = errors.New("User not found")
+	ErrUsernameTaken = errors.New("Username taken")
+)
+
 // CreateUser calls bolt database instance to create user
 func (bdb *Client) CreateUser(user User) error {
 	return bdb.DB.Update(func(tx *bolt.Tx) error {
@@ -22,7 +27,7 @@ func (bdb *Client) CreateUser(user User) error {
 
 		v := b.Get(usernameKey)
 		if v != nil {
-			return errors.New("username already taken")
+			return ErrUsernameTaken
 		}
 
 		userBytes, err := json.Marshal(user)
@@ -40,8 +45,7 @@ func (bdb *Client) GetUser(username string) (User, error) {
 		b := tx.Bucket([]byte("users"))
 		v := b.Get([]byte(username))
 		if v == nil {
-			log.Println("user not found")
-			return nil
+			return ErrNotFound
 		} else {
 			err1 := json.Unmarshal(v, &userInfo)
 			return err1

@@ -23,7 +23,12 @@ func (u *Users) CreateUser(ctx iris.Context) {
 		ctx.JSON(iris.StatusNotAcceptable)
 	}
 
-	u.DB.CreateUser(user)
+	if err := u.DB.CreateUser(user); err != nil {
+		log.Println(err)
+	} else {
+		ctx.StatusCode(iris.StatusOK)
+		ctx.HTML("<h1>User successfully created!</h1>")
+	}
 }
 
 func (u *Users) GetUser(ctx iris.Context) {

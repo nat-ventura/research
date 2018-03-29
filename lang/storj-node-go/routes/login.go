@@ -22,19 +22,71 @@ type BoltDB interface {
 type LoginUserRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Pubkey   string `json:"pubkey"`
 }
 
 type CreateUserRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Email    string `json:"email"`
+	Pubkey   string `json:"pubkey"`
 }
 
 type Token struct {
 	Token string
 }
 
+type Claim struct {
+	Id  string
+	exp int64
+}
+
+var (
+	ErrTokenInvalid = errors.New("Token is not valid")
+	secret          = "dried mango"
+)
+
+func (t Token) GenerateToken(username string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.StandardClaims{
+		Subject:   username,
+		NotBefore: time.Now().Unix(),
+		ExpiresAt: time.Now().Add(1 * time.Hour.Unix()),
+	})
+
+	tokenString, err := token.SignedString([]byte(secret))
+	if err != nil {
+		ctx.StatusCode(iris.StatusInternalServerError)
+		return
+	}
+
+	return tokenString
+}
+
+func ValidateToken(encryptedToken string) (string, error) {
+	tokData := regexp.MustCompile(`/s*$`).ReplaceAll([]byte(encryptedToken), []byte{})
+
+	currentToken, err := jwt.Parse(string(tokData), func(t *jwt.Token) (interface{}, error) {
+		return []byte(secret), nil
+	})
+	if err != nil {
+		fmt.Println("Couldn't parse token: ", err)
+		return
+	}
+
+	fmt.Println("Current token ", currentToken)
+
+	if !currentToken.Valid {
+		return ErrTokenInvalid
+	}
+
+	formatToken, err := json.Marshal(currentToken.Claims)
+
+	return string(tokData), err
+}
+
 func (u *Users) HandleLogin(ctx iris.Context) {
+	var tok Token
+
 	if ctx.Request().Body == nil {
 		ctx.StatusCode(iris.StatusBadRequest)
 		return
@@ -55,7 +107,9 @@ func (u *Users) HandleLogin(ctx iris.Context) {
 
 	savedUser, err := u.DB.GetUser(userRequest.Username)
 	if err != nil {
-		ctx.StatusCode(iris.StatusInternalServerError)
+		if err == boltdb.ErrNotFound {
+			u.DB.CreateUser(userRequest)
+		}
 		return
 	}
 
@@ -64,15 +118,5 @@ func (u *Users) HandleLogin(ctx iris.Context) {
 		return
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.StandardClaims{
-		Subject:   userRequest.Username,
-		NotBefore: time.Now(),
-		ExpiresAt: time.Now().Add(1 * time.Hour),
-	})
-
-	tokenString, err := token.SignedString(server.signkey)
-	if err != nil {
-		ctx.StatusCode(iris.StatusInternalServerError)
-		return
-	}
+	tokenString, err := tok.GenerateToken(savedUser.Username)
 }
