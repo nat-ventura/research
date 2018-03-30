@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"github.com/kataras/iris"
@@ -36,27 +37,31 @@ type Token struct {
 	Token string
 }
 
-type Claim struct {
-	Id  string
-	exp int64
+type Config struct {
+	key *ecdsa.PublicKey
 }
+
+const (
+	TEST_KEY_PATH = "./key/test_ecdsa"
+)
 
 var (
 	ErrTokenInvalid = errors.New("Token is not valid")
-	secret          = "dried mango"
+	ErrParsingKey   = errors.New("Unable to parse key")
+	ErrParsingToken = errors.New("Unable to parse token")
+	ErrSigningToken = errors.New("Error signing token")
 )
 
-func (t Token) GenerateToken(username string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.StandardClaims{
-		Subject:   username,
+func (t Token) GenerateToken(user User) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.StandardClaims{
+		Subject:   user.Username,
 		NotBefore: time.Now().Unix(),
 		ExpiresAt: time.Now().Add(1 * time.Hour.Unix()),
 	})
 
-	tokenString, err := token.SignedString([]byte(secret))
+	tokenString, err := token.SignedString([]byte(user.PubKey))
 	if err != nil {
-		ctx.StatusCode(iris.StatusInternalServerError)
-		return
+		return ErrSigningToken
 	}
 
 	return tokenString
@@ -64,13 +69,11 @@ func (t Token) GenerateToken(username string) (string, error) {
 
 func ValidateToken(encryptedToken string) (string, error) {
 	tokData := regexp.MustCompile(`/s*$`).ReplaceAll([]byte(encryptedToken), []byte{})
-
 	currentToken, err := jwt.Parse(string(tokData), func(t *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
-		fmt.Println("Couldn't parse token: ", err)
-		return
+		return ErrParsingToken
 	}
 
 	fmt.Println("Current token ", currentToken)
@@ -80,8 +83,23 @@ func ValidateToken(encryptedToken string) (string, error) {
 	}
 
 	formatToken, err := json.Marshal(currentToken.Claims)
-
 	return string(tokData), err
+}
+
+func (c *Config) LoadKey(path string) error {
+	pubKey, err := ioutil.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	parsedKey, err := jtw.ParseECPublicKeyFromPEM([]byte(pubKey))
+	if err != nil {
+		return ErrParsingKey
+	}
+
+	c.key = parsedKey
+
+	return nil
 }
 
 func (u *Users) HandleLogin(ctx iris.Context) {
